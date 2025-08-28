@@ -47,12 +47,11 @@ class VolumeController:
             float: Current volume as percentage (0.0 to 100.0)
         """
         try:
-            # Get current volume in dB
-            current_db = self.volume.GetMasterVolumeLevel()
+            # Get current volume as scalar (0.0 to 1.0) - matches system volume display
+            scalar_volume = self.volume.GetMasterVolumeLevelScalar()
             
-            # Convert dB to percentage
-            volume_range = self.max_volume - self.min_volume
-            volume_percentage = ((current_db - self.min_volume) / volume_range) * 100
+            # Convert to percentage (0-100)
+            volume_percentage = scalar_volume * 100
             
             return max(0.0, min(100.0, volume_percentage))
             
@@ -71,12 +70,11 @@ class VolumeController:
             # Clamp percentage to valid range
             percentage = max(0.0, min(100.0, percentage))
             
-            # Convert percentage to dB
-            volume_range = self.max_volume - self.min_volume
-            target_db = self.min_volume + (percentage / 100.0) * volume_range
+            # Convert percentage to scalar (0.0 to 1.0)
+            scalar_volume = percentage / 100.0
             
-            # Set the volume
-            self.volume.SetMasterVolumeLevel(target_db, None)
+            # Set the volume using scalar method - matches system volume behavior
+            self.volume.SetMasterVolumeLevelScalar(scalar_volume, None)
             
             logging.info(f"Volume set to {percentage:.1f}%")
             
