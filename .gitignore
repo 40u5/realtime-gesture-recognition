@@ -1,2 +1,17 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/__pycache__/
+**/__pycache__/
+
+# Cache directories
+cache/
+*/cache/
+**/cache/
+
+# Data directories - ignore contents but keep folder
+data/*
+!data/.gitkeep
+
+# Model directories - ignore contents but keep folder
+models/*
+!models/.gitkeep

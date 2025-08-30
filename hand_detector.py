@@ -7,7 +7,6 @@ Provides methods to process frames and get hand detection results.
 
 import cv2
 import mediapipe as mp
-import logging
 import numpy as np
 from typing import List, Tuple, Optional, Dict, Any
 
@@ -56,10 +55,7 @@ class HandDetector:
         # Store the last detection results
         self.last_results = None
         self.hands_detected = False
-        
-        logging.info(f"Hand detector initialized with max_hands={max_num_hands}, "
-                    f"detection_conf={min_detection_confidence}, "
-                    f"tracking_conf={min_tracking_confidence}")
+
     
     def process_frame(self, frame):
         """
@@ -112,7 +108,6 @@ class HandDetector:
             return detection_results
             
         except Exception as e:
-            logging.error(f"Error processing frame for hand detection: {e}")
             return None
     
     def _extract_landmarks(self, hand_landmarks, frame_shape):
@@ -188,7 +183,6 @@ class HandDetector:
             return frame
             
         except Exception as e:
-            logging.error(f"Error drawing landmarks: {e}")
             return frame
     
     def draw_landmarks_flipped(self, frame, detection_results):
@@ -232,7 +226,6 @@ class HandDetector:
             return self.draw_landmarks(frame, flipped_results)
             
         except Exception as e:
-            logging.error(f"Error drawing flipped hand landmarks: {e}")
             return frame
     
     def _draw_landmark_points(self, frame, landmarks):
@@ -364,9 +357,9 @@ class HandDetector:
         try:
             if self.hands:
                 self.hands.close()
-            logging.info("Hand detector cleanup completed")
+            pass
         except Exception as e:
-            logging.error(f"Error during hand detector cleanup: {e}")
+            pass
     
     def __del__(self):
         """Destructor to ensure cleanup."""

@@ -8,7 +8,6 @@ Provides methods to increase and decrease volume by relative amounts.
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from comtypes import CLSCTX_ALL
 from ctypes import cast, POINTER
-import logging
 
 
 class VolumeController:
@@ -33,10 +32,7 @@ class VolumeController:
             self.min_volume = self.volume_range[0]
             self.max_volume = self.volume_range[1]
             
-            logging.info(f"Volume controller initialized. Range: {self.min_volume:.2f} to {self.max_volume:.2f} dB")
-            
         except Exception as e:
-            logging.error(f"Failed to initialize volume controller: {e}")
             raise
     
     def get_current_volume(self):
@@ -56,7 +52,6 @@ class VolumeController:
             return max(0.0, min(100.0, volume_percentage))
             
         except Exception as e:
-            logging.error(f"Failed to get current volume: {e}")
             return 0.0
     
     def set_volume_percentage(self, percentage):
@@ -76,10 +71,8 @@ class VolumeController:
             # Set the volume using scalar method - matches system volume behavior
             self.volume.SetMasterVolumeLevelScalar(scalar_volume, None)
             
-            logging.info(f"Volume set to {percentage:.1f}%")
-            
         except Exception as e:
-            logging.error(f"Failed to set volume to {percentage}%: {e}")
+            pass
     
     def increase_volume(self, amount=5):
         """
@@ -100,12 +93,9 @@ class VolumeController:
             
             self.set_volume_percentage(new_volume)
             
-            logging.info(f"Volume increased by {amount} units (from {current_volume:.1f} to {new_volume:.1f})")
-            
             return new_volume
             
         except Exception as e:
-            logging.error(f"Failed to increase volume: {e}")
             return self.get_current_volume()
     
     def decrease_volume(self, amount=5):
@@ -127,29 +117,24 @@ class VolumeController:
             
             self.set_volume_percentage(new_volume)
             
-            logging.info(f"Volume decreased by {amount} units (from {current_volume:.1f} to {new_volume:.1f})")
-            
             return new_volume
             
         except Exception as e:
-            logging.error(f"Failed to decrease volume: {e}")
             return self.get_current_volume()
     
     def mute(self):
         """Mute the audio."""
         try:
             self.volume.SetMute(1, None)
-            logging.info("Audio muted")
         except Exception as e:
-            logging.error(f"Failed to mute audio: {e}")
+            pass
     
     def unmute(self):
         """Unmute the audio."""
         try:
             self.volume.SetMute(0, None)
-            logging.info("Audio unmuted")
         except Exception as e:
-            logging.error(f"Failed to unmute audio: {e}")
+            pass
     
     def is_muted(self):
         """
@@ -161,5 +146,4 @@ class VolumeController:
         try:
             return bool(self.volume.GetMute())
         except Exception as e:
-            logging.error(f"Failed to check mute status: {e}")
             return False

@@ -6,7 +6,6 @@ Provides methods to initialize camera, capture frames, and display video feed.
 """
 
 import cv2
-import logging
 import threading
 import time
 from hand_detector import HandDetector
@@ -47,14 +46,10 @@ class Camera:
         if self.enable_hand_detection:
             try:
                 self.hand_detector = HandDetector()
-                logging.info("Hand detector initialized successfully")
             except Exception as e:
-                logging.warning(f"Failed to initialize hand detector: {e}")
                 self.enable_hand_detection = False
                 self.hand_detector = None
-        
-        logging.info(f"Camera initialized with index {camera_index}, resolution {width}x{height}, "
-                    f"hand detection {'enabled' if self.enable_hand_detection else 'disabled'}")
+
     
     def start(self):
         """
@@ -67,7 +62,6 @@ class Camera:
             self.cap = cv2.VideoCapture(self.camera_index)
             
             if not self.cap.isOpened():
-                logging.error(f"Failed to open camera with index {self.camera_index}")
                 return False
             
             # Set camera properties
@@ -79,14 +73,12 @@ class Camera:
             actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
-            
-            logging.info(f"Camera started: {actual_width}x{actual_height} at {actual_fps:.1f} FPS")
+
             
             self.is_running = True
             return True
             
         except Exception as e:
-            logging.error(f"Failed to start camera: {e}")
             return False
     
     def stop(self):
@@ -98,10 +90,8 @@ class Camera:
                 self.cap.release()
                 self.cap = None
             
-            logging.info("Camera stopped")
-            
         except Exception as e:
-            logging.error(f"Error stopping camera: {e}")
+            pass
     
     def get_frame(self, process_hands=True):
         """
@@ -130,15 +120,13 @@ class Camera:
                         with self.detection_lock:
                             self.last_detection_results = detection_results
                     except Exception as e:
-                        logging.error(f"Error processing hands: {e}")
+                        pass
                 
                 return frame
             else:
-                logging.warning("Failed to read frame from camera")
                 return None
                 
         except Exception as e:
-            logging.error(f"Error getting frame: {e}")
             return None
     
     def get_current_frame(self):
@@ -186,7 +174,6 @@ class Camera:
             return info
             
         except Exception as e:
-            logging.error(f"Error getting camera info: {e}")
             return {"status": "Error retrieving info"}
     
     def set_resolution(self, width, height):
@@ -201,7 +188,6 @@ class Camera:
             bool: True if resolution set successfully, False otherwise
         """
         if not self.is_camera_running():
-            logging.warning("Camera not running, cannot set resolution")
             return False
         
         try:
@@ -215,11 +201,9 @@ class Camera:
             self.width = actual_width
             self.height = actual_height
             
-            logging.info(f"Resolution set to {actual_width}x{actual_height}")
             return True
             
         except Exception as e:
-            logging.error(f"Failed to set resolution: {e}")
             return False
     
     def get_hand_detection_results(self):
@@ -259,7 +243,6 @@ class Camera:
             return frame
             
         except Exception as e:
-            logging.error(f"Error drawing hand landmarks: {e}")
             return frame
     
     def draw_hand_landmarks_flipped(self, frame, detection_results):
@@ -280,7 +263,6 @@ class Camera:
             return self.hand_detector.draw_landmarks_flipped(frame, detection_results)
             
         except Exception as e:
-            logging.error(f"Error drawing flipped hand landmarks: {e}")
             return frame
     
     def get_finger_positions(self):
@@ -323,13 +305,10 @@ class Camera:
             try:
                 self.hand_detector = HandDetector()
                 self.enable_hand_detection = True
-                logging.info("Hand detection enabled")
             except Exception as e:
-                logging.error(f"Failed to enable hand detection: {e}")
                 return False
         else:
             self.enable_hand_detection = not self.enable_hand_detection
-            logging.info(f"Hand detection {'enabled' if self.enable_hand_detection else 'disabled'}")
         
         return self.enable_hand_detection
     
@@ -339,9 +318,9 @@ class Camera:
             if self.hand_detector is not None:
                 self.hand_detector.cleanup()
                 self.hand_detector = None
-            logging.info("Hand detector cleanup completed")
+            pass
         except Exception as e:
-            logging.error(f"Error cleaning up hand detector: {e}")
+            pass
     
     def __del__(self):
         """Destructor to ensure camera resources are released."""

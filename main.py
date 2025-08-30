@@ -6,7 +6,6 @@ Handles the main application loop and user interactions.
 """
 
 import cv2
-import logging
 import sys
 import time
 from camera import Camera
@@ -37,12 +36,9 @@ class MainApp:
         # Initialize volume controller
         try:
             self.volume_controller = VolumeController()
-            logging.info("Volume controller initialized successfully")
         except Exception as e:
-            logging.warning(f"Volume controller initialization failed: {e}")
             self.volume_controller = None
-        
-        logging.info(f"Main application initialized with camera {camera_index}")
+
     
     def setup_window(self):
         """Set up the display window with proper settings."""
@@ -53,10 +49,7 @@ class MainApp:
             # Add some helpful text instructions
             self.create_help_overlay()
             
-            logging.info(f"Display window '{self.window_name}' created")
-            
         except Exception as e:
-            logging.error(f"Failed to setup window: {e}")
             raise
     
     def create_help_overlay(self):
@@ -139,7 +132,7 @@ class MainApp:
                 cv2.putText(frame, volume_text, (width - 200, height - 30), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
             except Exception as e:
-                logging.error(f"Error displaying volume info: {e}")
+                pass
         
         return frame
     
@@ -162,35 +155,27 @@ class MainApp:
         # Show camera info
         elif key == ord('i'):
             info = self.camera.get_camera_info()
-            logging.info(f"Camera info: {info}")
             print("Camera Info:")
             for k, v in info.items():
                 print(f"  {k}: {v}")
         
         # Reset camera
         elif key == ord('r'):
-            logging.info("Resetting camera...")
             self.camera.stop()
             time.sleep(0.5)
-            if self.camera.start():
-                logging.info("Camera reset successfully")
-            else:
-                logging.error("Failed to reset camera")
+            self.camera.start()
         
         # Toggle hand detection
         elif key == ord('h'):
             enabled = self.camera.toggle_hand_detection()
-            logging.info(f"Hand detection {'enabled' if enabled else 'disabled'}")
         
         # Volume controls (if volume controller is available)
         elif self.volume_controller:
             if key == 82:  # Up arrow key
                 new_volume = self.volume_controller.increase_volume(5)
-                logging.info(f"Volume increased to {new_volume:.1f}%")
             
             elif key == 84:  # Down arrow key
                 new_volume = self.volume_controller.decrease_volume(5)
-                logging.info(f"Volume decreased to {new_volume:.1f}%")
             
             elif key == ord('m'):  # Toggle mute
                 if self.volume_controller.is_muted():
@@ -208,17 +193,9 @@ class MainApp:
             int: Exit code (0 for success, 1 for error)
         """
         try:
-            # Setup logging
-            logging.basicConfig(
-                level=logging.INFO,
-                format='%(asctime)s - %(levelname)s - %(message)s'
-            )
-            
-            logging.info("Starting gesture recognition application...")
             
             # Initialize camera
             if not self.camera.start():
-                logging.error("Failed to start camera")
                 return 1
             
             # Setup display window
@@ -226,8 +203,7 @@ class MainApp:
             
             self.is_running = True
             show_help = False
-            
-            logging.info("Application started successfully. Press ESC or 'q' to quit.")
+
             
             # Main loop
             while self.is_running:
@@ -235,7 +211,6 @@ class MainApp:
                 frame = self.camera.get_frame()
                 
                 if frame is None:
-                    logging.warning("No frame received from camera")
                     time.sleep(0.1)
                     continue
                                 
@@ -269,15 +244,12 @@ class MainApp:
                     elif not self.handle_keyboard_input(key):
                         break
             
-            logging.info("Application shutting down...")
             return 0
             
         except KeyboardInterrupt:
-            logging.info("Application interrupted by user")
             return 0
             
         except Exception as e:
-            logging.error(f"Application error: {e}")
             return 1
             
         finally:
@@ -294,10 +266,8 @@ class MainApp:
             # Close OpenCV windows
             cv2.destroyAllWindows()
             
-            logging.info("Cleanup completed")
-            
         except Exception as e:
-            logging.error(f"Error during cleanup: {e}")
+            pass
     
     def __del__(self):
         """Destructor to ensure cleanup."""
