@@ -10,6 +10,7 @@ import sys
 import time
 from camera import Camera
 from volume_controller import VolumeController
+from gesture_detector import GestureDetector
 
 
 class MainApp:
@@ -31,6 +32,7 @@ class MainApp:
         self.window_name = window_name
         self.camera = Camera(camera_index=camera_index)
         self.volume_controller = None
+        self.gesture_detector = None
         self.is_running = False
         
         # Initialize volume controller
@@ -38,6 +40,14 @@ class MainApp:
             self.volume_controller = VolumeController()
         except Exception as e:
             self.volume_controller = None
+        
+        # Initialize gesture detector
+        try:
+            self.gesture_detector = GestureDetector()
+            print("✅ Gesture detection enabled")
+        except Exception as e:
+            print(f"⚠️ Gesture detection disabled: {e}")
+            self.gesture_detector = None
 
     
     def setup_window(self):
@@ -63,6 +73,11 @@ class MainApp:
             "I - Show camera info",
             "R - Reset camera",
             "H - Toggle hand detection",
+            "G - Reset gesture buffer",
+            "",
+            "Gestures Recognized:",
+            "Left Swipe, Right Swipe, Stop,",
+            "Thumbs Up, Thumbs Down",
             "",
             "Volume Controls (if available):",
             "↑ - Increase volume",
@@ -169,6 +184,12 @@ class MainApp:
         elif key == ord('h'):
             enabled = self.camera.toggle_hand_detection()
         
+        # Reset gesture buffer
+        elif key == ord('g'):
+            if self.gesture_detector:
+                self.gesture_detector.reset_sequence()
+                print("🔄 Gesture buffer reset")
+        
         # Volume controls (if volume controller is available)
         elif self.volume_controller:
             if key == 82:  # Up arrow key
@@ -219,12 +240,27 @@ class MainApp:
                 if self.camera.enable_hand_detection:
                     detection_results = self.camera.get_hand_detection_results()
                 
+                # Process gesture detection if enabled
+                gesture_prediction = None
+                if self.gesture_detector and detection_results:
+                    # Process landmarks for gesture detection
+                    self.gesture_detector.process_landmarks(detection_results)
+                    
+                    # Get gesture prediction
+                    gesture_prediction = self.gesture_detector.predict_gesture()
+                    
+                    # Note: Probabilities are displayed visually on the camera feed
+                
                 # Flip frame horizontally for mirror effect
                 frame = cv2.flip(frame, 1)
                 
                 # Draw hand landmarks if hand detection is enabled (with flipped coordinates)
                 if self.camera.enable_hand_detection and detection_results:
                     frame = self.camera.draw_hand_landmarks_flipped(frame, detection_results)
+                
+                # Draw gesture predictions if available
+                if self.gesture_detector and gesture_prediction:
+                    frame = self.gesture_detector.draw_predictions(frame, gesture_prediction)
                 
                 # Add status information
                 frame = self.draw_status_info(frame)
@@ -262,6 +298,10 @@ class MainApp:
             
             # Stop camera
             self.camera.stop()
+            
+            # Clean up gesture detector
+            if self.gesture_detector:
+                self.gesture_detector.cleanup()
             
             # Close OpenCV windows
             cv2.destroyAllWindows()
