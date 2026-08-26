@@ -61,5 +61,15 @@ def type_char(ch: str):
           _key(scan=code, flags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP))
 
 
+def type_text(text: str):
+    inputs = []
+    for ch in text:
+        code = ord(ch)
+        inputs.append(_key(scan=code, flags=KEYEVENTF_UNICODE))
+        inputs.append(_key(scan=code, flags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP))
+    if inputs:
+        _send(*inputs)
+
+
 def backspace():
     _send(_key(vk=VK_BACK), _key(vk=VK_BACK, flags=KEYEVENTF_KEYUP))

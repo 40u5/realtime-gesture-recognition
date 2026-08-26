@@ -19,6 +19,7 @@ class Config:
     mouth_open_ratio: float = 0.55   # above this counts as "open"
     mouth_close_ratio: float = 0.30  # must drop back below this to finish a tap
     tap_window_s: float = 0.6        # gap after a close that ends the tap count
+    mouth_hold_s: float = 1.0        # sustained open that toggles voice dictation
 
     # Blink Morse typing
     min_blink_s: float = 0.06   # closures shorter than this are ignored

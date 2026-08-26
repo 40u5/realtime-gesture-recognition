@@ -1,7 +1,8 @@
 """Head Tracking Mouse
 
 Moves the Windows cursor with small head turns, using a webcam and
-MediaPipe Face Mesh. Mouth gestures click; blink Morse code types.
+MediaPipe Face Mesh. Mouth gestures click; voice dictation types
+(blink Morse code is the silent fallback).
 """
 
 import argparse
@@ -19,6 +20,7 @@ from config import CONFIG
 from cursor_controller import CursorController
 from face_tracker import FaceTracker
 from gestures import EyeState, MorseTyper, MouthTaps
+from voice import VoiceTyper
 
 WINDOW_NAME = "Head Tracking Mouse"
 SENS_X_TRACKBAR = "Sens X %"
@@ -91,10 +93,12 @@ def main() -> int:
     controller.set_tuning(CONFIG)
     tapper = MouthTaps(CONFIG)
     typer = MorseTyper(CONFIG)
+    voice = VoiceTyper()
     eye_state = EyeState()
 
     active = False
     typing_mode = False
+    voice_mode = False
     typed = ""  # everything typed this session, echoed on the HUD
     flash_text = ""   # transient HUD notice for invisible characters
     flash_until = 0.0
@@ -110,10 +114,12 @@ def main() -> int:
 
     print(f"Screen: {controller.screen_w}x{controller.screen_h}"
           + (" (dry run: cursor will not move)" if args.dry_run else ""))
-    print("SPACE start/pause | C re-center | 3 mouth taps (or Right-Ctrl/F7) typing mode | Q quit")
-    print("Mouth taps: 1 = left click, 2 = right click, 3 = typing mode")
-    print("Typing mode: short blink = dot, long = dash, pause = end letter, "
-          "1 tap = space, ---- (4 long blinks) = backspace, 3 taps = exit")
+    print("SPACE start/pause | C re-center | 3 mouth taps (or Right-Ctrl/F7) Morse mode | Q quit")
+    print("Mouth taps: 1 = left click, 2 = right click, 3 = Morse typing mode")
+    print("Voice: hold mouth open ~1s (or V) to dictate - speech is typed; "
+          "2 taps = backspace, 3 taps = back to cursor")
+    print("Morse mode: short blink = dot, long = dash, pause = end letter, "
+          "1 tap = space, 2 taps (or ----) = backspace, 3 taps = exit")
 
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
     cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_TOPMOST, 1)
@@ -152,13 +158,35 @@ def main() -> int:
             # typing; what 1 and 2 taps mean depends on the mode below.
             taps = tapper.update(obs.mouth_ratio, now) if obs is not None else 0
 
-            if active and not typing_mode and obs is not None:
+            if active and not typing_mode and not voice_mode and obs is not None:
                 if taps == 1:
                     print("[dry run] left click") if args.dry_run else win_input.left_click()
                 elif taps == 2:
                     print("[dry run] right click") if args.dry_run else win_input.right_click()
 
-            if typing_mode:
+            # Drain finished phrases every frame (not only in voice mode) so
+            # the last phrase still lands after dictation is toggled off.
+            for text in voice.poll():
+                typed += text + " "
+                if args.dry_run:
+                    print(f"[dry run] type {text + ' '!r}")
+                else:
+                    win_input.type_text(text + " ")
+
+            if voice_mode:
+                if taps == 2:
+                    typed = typed[:-1]
+                    flash_text, flash_until = "[ BACKSPACE ]", now + 1.2
+                    print("[dry run] backspace") if args.dry_run \
+                        else win_input.backspace()
+                st = voice.state
+                if st == "listening":
+                    status, status_color = "VOICE - listening", (0, 255, 0)
+                elif st.startswith("error"):
+                    status, status_color = "VOICE " + st, (0, 0, 255)
+                else:
+                    status, status_color = f"VOICE - {st}", (255, 200, 0)
+            elif typing_mode:
                 # Typing works even while head control is paused. Keystrokes
                 # land in whichever window has focus; the HUD echoes them.
                 if obs is None:
@@ -224,6 +252,14 @@ def main() -> int:
                         if fl is not None:
                             events.append(fl)
                         events.append(("space",))
+                    elif taps == 2:
+                        if typer.code:
+                            # Mid-letter, backspace means "scrap this letter",
+                            # not "delete already-typed text".
+                            typer.code = ""
+                            flash_text, flash_until = "[ CODE CLEARED ]", now + 1.2
+                        else:
+                            events.append(("backspace",))
                     elif not tapper.mouth_open:
                         # While the mouth is open the mesh distorts; don't
                         # count blinks until it closes again.
@@ -290,9 +326,24 @@ def main() -> int:
             face_txt = (f"   Mouth: {obs.mouth_ratio:.2f}"
                         f"   Eye: {obs.min_ear:.2f} {'OPEN' if eyes_open else 'SHUT'}") \
                 if obs is not None else ""
-            put_text(frame, f"Type: {'ON' if typing_mode else 'OFF'}   "
+            type_label = "MORSE" if typing_mode else "VOICE" if voice_mode else "OFF"
+            put_text(frame, f"Type: {type_label}   "
                      f"Sens X: {sens_x:.2f}x  Y: {sens_y:.2f}x   FPS: {fps:.0f}"
                      + face_txt, (10, 50))
+            if voice_mode:
+                put_text(frame, "Typed: " + typed[-40:].replace(" ", "_"),
+                         (10, 75), (255, 200, 0))
+                if voice.partial:
+                    put_text(frame, "hearing: " + voice.partial[-45:],
+                             (10, 100), (0, 255, 255))
+                if now < flash_until:
+                    put_text(frame, flash_text, (10, 130), (0, 255, 255), 0.8)
+                fh = frame.shape[0]
+                put_text(frame, "speak normally - each finished phrase is typed"
+                         " into the focused window",
+                         (10, fh - 30), (200, 200, 200), 0.45)
+                put_text(frame, "2 mouth taps = BACKSPACE   3 taps (or hold / V) = back to cursor",
+                         (10, fh - 12), (200, 200, 200), 0.45)
             if typing_mode:
                 put_text(frame, f"Morse: {typer.code or '.'}   last: {typer.last_decoded}",
                          (10, 75), (255, 200, 0))
@@ -305,7 +356,7 @@ def main() -> int:
                 fh = frame.shape[0]
                 put_text(frame, "short blink = dot   long blink = dash   pause = type letter",
                          (10, fh - 30), (200, 200, 200), 0.45)
-                put_text(frame, "1 mouth tap = SPACE   4 long blinks (----) = BACKSPACE   3 taps = exit",
+                put_text(frame, "1 mouth tap = SPACE   2 taps (or ----) = BACKSPACE   3 taps = exit",
                          (10, fh - 12), (200, 200, 200), 0.45)
 
             cv2.imshow(WINDOW_NAME, frame)
@@ -333,18 +384,39 @@ def main() -> int:
                     pos = cv2.getTrackbarPos(bar, WINDOW_NAME)
                     cv2.setTrackbarPos(bar, WINDOW_NAME,
                                        max(0, min(400, pos + step)))
-            if any([k.pressed() for k in typing_keys]) or key == ord('t') or taps == 3:
+            # In voice mode 3 taps means "back to cursor", not "Morse mode",
+            # so it is routed to the voice toggle below instead.
+            if any([k.pressed() for k in typing_keys]) or key == ord('t') \
+                    or (taps == 3 and not voice_mode):
                 typing_mode = not typing_mode
                 typer.reset()
                 tapper.cancel()
                 typed = ""
                 if typing_mode:
+                    if voice_mode:
+                        voice_mode = False
+                        voice.stop()
                     # Re-calibrate eye open/closed references on every entry.
                     cal_phase, cal_until, cal_samples = "wait", now + 0.8, []
                 else:
                     cal_phase = None
-                print("Typing mode " + ("ON" if typing_mode else "OFF"), flush=True)
+                print("Morse typing mode " + ("ON" if typing_mode else "OFF"), flush=True)
+            elif key == ord('v') or taps == MouthTaps.HOLD \
+                    or (voice_mode and taps == 3):
+                voice_mode = not voice_mode
+                tapper.cancel()
+                if voice_mode:
+                    typing_mode = False
+                    cal_phase = None
+                    typed = ""
+                    voice.start()
+                    beep((660, 90), (988, 130))  # rising: dictation on
+                else:
+                    voice.stop()
+                    beep((988, 90), (660, 130))  # falling: dictation off
+                print("Voice dictation " + ("ON" if voice_mode else "OFF"), flush=True)
     finally:
+        voice.stop()
         cap.release()
         tracker.close()
         cv2.destroyAllWindows()
