@@ -1,4 +1,4 @@
-"""Face tracking with MediaPipe Face Mesh: nose position, blink and mouth state."""
+"""Face tracking with MediaPipe Face Mesh: nose position and mouth state."""
 
 from dataclasses import dataclass
 
@@ -10,10 +10,6 @@ import numpy as np
 # and the nose region is its most stable part.
 NOSE = (1, 2, 4)
 
-# (corner, corner, upper lid, lower lid)
-RIGHT_EYE = (33, 133, 159, 145)
-LEFT_EYE = (362, 263, 386, 374)
-
 # (upper inner lip, lower inner lip)
 MOUTH = (13, 14)
 
@@ -22,7 +18,6 @@ MOUTH = (13, 14)
 class FaceObservation:
     nose_x: float  # normalized frame coords (0..1) in the mirrored frame
     nose_y: float
-    min_ear: float  # smaller eye-aspect-ratio of the two eyes; EyeState classifies it
     mouth_ratio: float  # lip gap / philtrum: ~0.1 closed, >1 wide open
     markers: dict  # name -> (px, py), for drawing
 
@@ -31,7 +26,6 @@ class FaceTracker:
     def __init__(self):
         self.face_mesh = mp.solutions.face_mesh.FaceMesh(
             max_num_faces=1,
-            refine_landmarks=True,  # without this, eyelid landmarks barely move on blinks
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5,
         )
@@ -47,15 +41,6 @@ class FaceTracker:
 
         nose = np.mean([pt(i) for i in NOSE], axis=0)
 
-        ears = []
-        eye_centers = []
-        for c0, c1, top, bottom in (RIGHT_EYE, LEFT_EYE):
-            corner0, corner1 = pt(c0), pt(c1)
-            lid_top, lid_bottom = pt(top), pt(bottom)
-            eye_width = float(np.linalg.norm(corner1 - corner0)) + 1e-9
-            ears.append(float(np.linalg.norm(lid_bottom - lid_top)) / eye_width)
-            eye_centers.append((corner0 + corner1 + lid_top + lid_bottom) / 4.0)
-
         lip_top, lip_bottom = pt(MOUTH[0]), pt(MOUTH[1])
         # Reference the lip gap against nose-to-upper-lip, not mouth width:
         # both are vertical spans, so pitching the head down foreshortens them
@@ -68,8 +53,6 @@ class FaceTracker:
         px = lambda p: (int(p[0] * w), int(p[1] * h))
 
         markers = {
-            "eye_right": px(eye_centers[0]),
-            "eye_left": px(eye_centers[1]),
             "nose": px(nose),
             "mouth": px((lip_top + lip_bottom) / 2.0),
         }
@@ -77,7 +60,6 @@ class FaceTracker:
         return FaceObservation(
             nose_x=float(nose[0]),
             nose_y=float(nose[1]),
-            min_ear=float(min(ears)),
             mouth_ratio=mouth_ratio,
             markers=markers,
         )

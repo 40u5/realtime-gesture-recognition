@@ -15,17 +15,14 @@ class Config:
     park_time_s: float = 0.30   # how long it must stay still before parking again
 
     # Mouth taps (ratio = lip gap / nose-to-upper-lip distance)
-    # 1 tap = left click / space, 2 = right click, 3 = typing-mode toggle
+    # 1 tap = left click, 2 = right click; voice mode: 2 = backspace, 3 = exit
     mouth_open_ratio: float = 0.55   # above this counts as "open"
     mouth_close_ratio: float = 0.30  # must drop back below this to finish a tap
     tap_window_s: float = 0.6        # gap after a close that ends the tap count
     mouth_hold_s: float = 1.0        # sustained open that toggles voice dictation
 
-    # Blink Morse typing
-    min_blink_s: float = 0.06   # closures shorter than this are ignored
-    dot_max_s: float = 0.35     # closure up to this = dot, longer = dash
-    merge_gap_s: float = 0.12   # re-closure within this joins the previous closure
-    letter_gap_s: float = 0.8   # eyes-open pause that ends a letter
+    # Voice dictation
+    voice_silence_s: float = 1.0     # dictation turns itself off after this much silence
 
 
 CONFIG = Config()

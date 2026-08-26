@@ -9,6 +9,7 @@ import json
 import os
 import queue
 import threading
+import time
 import urllib.request
 import zipfile
 
@@ -32,6 +33,13 @@ class VoiceTyper:
         self._stop = threading.Event()
         self.partial = ""   # phrase in progress, for the HUD
         self.state = "off"  # "off" | "listening" | progress text | "error: ..."
+        self._last_speech = None  # monotonic time speech was last heard
+
+    def idle_s(self) -> float:
+        """Seconds since speech was last heard (0 unless actively listening)."""
+        if self.state != "listening" or self._last_speech is None:
+            return 0.0
+        return time.monotonic() - self._last_speech
 
     def start(self):
         if self._thread is not None and self._thread.is_alive():
@@ -114,6 +122,9 @@ class VoiceTyper:
             with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=4000,
                                    dtype="int16", channels=1,
                                    callback=on_audio):
+                # Set before flipping the state so idle_s() never reads a
+                # stale timestamp from a previous session.
+                self._last_speech = time.monotonic()
                 self.state = "listening"
                 while not stop.is_set():
                     try:
@@ -125,8 +136,15 @@ class VoiceTyper:
                         text = json.loads(rec.Result()).get("text", "")
                         if text:
                             self._finals.put(text)
+                            self._last_speech = time.monotonic()
                     else:
-                        self.partial = json.loads(rec.PartialResult()).get("partial", "")
+                        p = json.loads(rec.PartialResult()).get("partial", "")
+                        # Only a *changing* partial counts as speech, so the
+                        # repeated identical partial Vosk emits while waiting
+                        # to endpoint a phrase doesn't hold the timer open.
+                        if p and p != self.partial:
+                            self._last_speech = time.monotonic()
+                        self.partial = p
             # Whatever was being said when dictation ended still counts.
             text = json.loads(rec.FinalResult()).get("text", "")
             if text:
