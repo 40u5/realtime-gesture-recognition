@@ -11,8 +11,11 @@ pose is the signal that works.
 
 ## Demo
 
-[▶ Watch the demo](demo.mp4) — head-pointing, mouth-tap clicks, and voice
-dictation in action (GitHub plays it when clicked).
+https://github.com/user-attachments/assets/24a87830-cbd4-48ec-95d0-9fbfdc678b25
+
+
+
+
 
 ## Setup
 
