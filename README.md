@@ -9,6 +9,11 @@ A pure eye-gaze mode was prototyped and removed: webcam iris tracking is too
 noisy for cursor control (eye movement wobbles the whole face mesh). Head
 pose is the signal that works.
 
+## Demo
+
+[▶ Watch the demo](demo.mp4) — head-pointing, mouth-tap clicks, and voice
+dictation in action (GitHub plays it when clicked).
+
 ## Setup
 
 ```
@@ -65,9 +70,10 @@ into whichever window has focus, followed by a space. The HUD shows the
 phrase being recognized live (`hearing: ...`) and echoes everything typed.
 The microphone is only captured while dictation is on. While dictating:
 
-- **~1 s of silence** → dictation turns itself off automatically (falling
-  beep; a phrase in flight is still typed). Start talking right after the
-  toggle. Tune with `voice_silence_s` in `config.py`.
+- **~2.5 s of silence** → dictation turns itself off automatically (falling
+  beep; a phrase in flight is still typed). You get ~5 s to start speaking
+  after the toggle. Tune with `voice_silence_s` / `voice_start_grace_s` in
+  `config.py`.
 - **2 mouth taps** → backspace.
 - **3 mouth taps** → back to cursor mode (hold ~1 s or **V** also exit,
   with a falling beep).
