@@ -1,6 +1,7 @@
 """Win32 SendInput wrappers: mouse clicks and keystrokes."""
 
 import ctypes
+import time
 from ctypes import wintypes
 
 INPUT_MOUSE = 0
@@ -12,6 +13,22 @@ MOUSEEVENTF_RIGHTUP = 0x0010
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
 VK_BACK = 0x08
+VK_CONTROL = 0x11
+VK_V = 0x56
+CF_UNICODETEXT = 13
+GMEM_MOVEABLE = 0x0002
+
+_user32 = ctypes.windll.user32
+_kernel32 = ctypes.windll.kernel32
+# Default ctypes restype is a 32-bit int; handles/pointers get truncated
+# on 64-bit Windows without these.
+_kernel32.GlobalAlloc.restype = ctypes.c_void_p
+_kernel32.GlobalLock.restype = ctypes.c_void_p
+_kernel32.GlobalLock.argtypes = (ctypes.c_void_p,)
+_kernel32.GlobalUnlock.argtypes = (ctypes.c_void_p,)
+_kernel32.GlobalFree.argtypes = (ctypes.c_void_p,)
+_user32.SetClipboardData.restype = ctypes.c_void_p
+_user32.SetClipboardData.argtypes = (wintypes.UINT, ctypes.c_void_p)
 
 
 class MOUSEINPUT(ctypes.Structure):
@@ -55,20 +72,39 @@ def right_click():
     _send(_mouse(MOUSEEVENTF_RIGHTDOWN), _mouse(MOUSEEVENTF_RIGHTUP))
 
 
-def type_char(ch: str):
-    code = ord(ch)
-    _send(_key(scan=code, flags=KEYEVENTF_UNICODE),
-          _key(scan=code, flags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP))
+def set_clipboard(text: str) -> bool:
+    data = text.encode("utf-16-le") + b"\x00\x00"
+    handle = _kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+    if not handle:
+        return False
+    ptr = _kernel32.GlobalLock(handle)
+    ctypes.memmove(ptr, data, len(data))
+    _kernel32.GlobalUnlock(handle)
+    if not _user32.OpenClipboard(None):
+        _kernel32.GlobalFree(handle)
+        return False
+    _user32.EmptyClipboard()
+    ok = bool(_user32.SetClipboardData(CF_UNICODETEXT, handle))
+    if not ok:  # on success the clipboard owns the handle
+        _kernel32.GlobalFree(handle)
+    _user32.CloseClipboard()
+    return ok
 
 
-def type_text(text: str):
-    inputs = []
-    for ch in text:
-        code = ord(ch)
-        inputs.append(_key(scan=code, flags=KEYEVENTF_UNICODE))
-        inputs.append(_key(scan=code, flags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP))
-    if inputs:
-        _send(*inputs)
+def paste_text(text: str) -> bool:
+    """Put text on the clipboard and send Ctrl+V.
+
+    Injecting long phrases as raw unicode key events proved unreliable
+    (apps dropped or mangled parts of the burst); a paste delivers the
+    exact string no matter its length.
+    """
+    if not set_clipboard(text):
+        return False
+    time.sleep(0.02)  # let the clipboard update settle before the paste
+    _send(_key(vk=VK_CONTROL), _key(vk=VK_V),
+          _key(vk=VK_V, flags=KEYEVENTF_KEYUP),
+          _key(vk=VK_CONTROL, flags=KEYEVENTF_KEYUP))
+    return True
 
 
 def backspace():

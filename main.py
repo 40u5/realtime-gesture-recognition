@@ -33,6 +33,15 @@ def parse_args():
     return parser.parse_args()
 
 
+def log(msg):
+    print(msg, flush=True)
+    try:
+        with open("voice_log.txt", "a", encoding="utf-8") as f:
+            f.write(time.strftime("%H:%M:%S ") + msg + "\n")
+    except OSError:
+        pass
+
+
 def beep(*notes):
     """Play (freq_hz, dur_ms) notes without blocking the tracking loop."""
     def _play():
@@ -134,16 +143,23 @@ def main() -> int:
             for text in voice.poll():
                 typed += text + " "
                 if args.dry_run:
-                    print(f"[dry run] type {text + ' '!r}")
+                    print(f"[dry run] paste {text + ' '!r}")
                 else:
-                    win_input.type_text(text + " ")
+                    log(f"[type] paste {text + ' '!r}")
+                    win_input.paste_text(text + " ")
 
             if voice_mode:
-                if taps == 2:
+                # Fast talking registers as mouth taps, so gestures only
+                # count while the recognizer hears silence (no partial in
+                # flight) - deliberate taps happen in a speech pause.
+                if taps == 2 and not voice.partial:
                     typed = typed[:-1]
                     flash_text, flash_until = "[ BACKSPACE ]", now + 1.2
-                    print("[dry run] backspace") if args.dry_run \
-                        else win_input.backspace()
+                    if args.dry_run:
+                        print("[dry run] backspace")
+                    else:
+                        log("[type] backspace")
+                        win_input.backspace()
                 st = voice.state
                 if st == "listening":
                     status, status_color = "VOICE - listening", (0, 255, 0)
@@ -231,7 +247,7 @@ def main() -> int:
                     cv2.setTrackbarPos(bar, WINDOW_NAME,
                                        max(0, min(400, pos + step)))
             if key == ord('v') or taps == MouthTaps.HOLD \
-                    or (voice_mode and taps == 3):
+                    or (voice_mode and taps == 3 and not voice.partial):
                 voice_mode = not voice_mode
                 tapper.cancel()
                 if voice_mode:

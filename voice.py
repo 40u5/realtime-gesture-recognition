@@ -15,6 +15,17 @@ import zipfile
 
 import numpy as np
 
+from config import CONFIG
+
+def _log(msg):
+    print(msg, flush=True)
+    try:
+        with open("voice_log.txt", "a", encoding="utf-8") as f:
+            f.write(time.strftime("%H:%M:%S ") + msg + "\n")
+    except OSError:
+        pass
+
+
 MODEL_NAME = "vosk-model-small-en-us-0.15"
 MODEL_URL = f"https://alphacephei.com/vosk/models/{MODEL_NAME}.zip"
 MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
@@ -132,6 +143,7 @@ class VoiceTyper:
                 # stale timestamp from a previous session.
                 self._last_speech = time.monotonic()
                 self.state = "listening"
+                utt_start = None  # when the current phrase started building
                 while not stop.is_set():
                     try:
                         data = audio.get(timeout=0.2)
@@ -139,12 +151,38 @@ class VoiceTyper:
                         continue
                     if rec.AcceptWaveform(data):
                         self.partial = ""
+                        utt_start = None
                         text = json.loads(rec.Result()).get("text", "")
                         if text:
+                            _log(f"[voice] endpoint final: {text!r}")
                             self._finals.put(text)
                             self.heard_speech = True
                     else:
+                        prev = self.partial
                         self.partial = json.loads(rec.PartialResult()).get("partial", "")
+                        if not self.partial:
+                            utt_start = None
+                        elif utt_start is None:
+                            utt_start = time.monotonic()
+                        else:
+                            # Vosk only finalizes a phrase when it hears a
+                            # pause, so continuous speech buffers everything
+                            # and types nothing until the speaker stops. Past
+                            # the cap, force the phrase out - preferably at a
+                            # moment the partial is stable so no word is cut
+                            # in half. The next AcceptWaveform reinitializes
+                            # the recognizer automatically.
+                            elapsed = time.monotonic() - utt_start
+                            if elapsed > CONFIG.voice_max_phrase_s and (
+                                    self.partial == prev
+                                    or elapsed > CONFIG.voice_max_phrase_s + 1.5):
+                                text = json.loads(rec.FinalResult()).get("text", "")
+                                self.partial = ""
+                                utt_start = None
+                                if text:
+                                    _log(f"[voice] chunk flush: {text!r}")
+                                    self._finals.put(text)
+                                    self.heard_speech = True
 
                     # Silence is judged by ear (chunk RMS vs an adaptive
                     # noise floor), not by recognition progress: Vosk's
@@ -169,6 +207,7 @@ class VoiceTyper:
             # Whatever was being said when dictation ended still counts.
             text = json.loads(rec.FinalResult()).get("text", "")
             if text:
+                _log(f"[voice] session-end final: {text!r}")
                 self._finals.put(text)
             self.partial = ""
             self.state = "off"

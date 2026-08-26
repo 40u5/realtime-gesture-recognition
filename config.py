@@ -24,6 +24,7 @@ class Config:
     # Voice dictation
     voice_silence_s: float = 2.5      # dictation turns itself off after this much silence
     voice_start_grace_s: float = 5.0  # time allowed to start speaking after dictation turns on
+    voice_max_phrase_s: float = 3.0   # continuous speech is force-typed in chunks of this length
 
 
 CONFIG = Config()

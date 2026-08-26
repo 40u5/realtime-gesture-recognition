@@ -68,8 +68,10 @@ A "tap" is one quick open+close of the mouth. In cursor mode:
 **Hold your mouth open for about a second** (rising double-beep confirms;
 **V** on the preview window also works) to start dictating, then just talk.
 Speech is recognized locally with [Vosk](https://alphacephei.com/vosk/) —
-offline, no audio leaves the machine — and each finished phrase is typed
-into whichever window has focus, followed by a space. The HUD shows the
+offline, no audio leaves the machine — and each finished phrase is pasted
+into whichever window has focus (via the clipboard and Ctrl+V — injecting
+long phrases as raw keystrokes proved unreliable), followed by a space.
+Dictating overwrites the clipboard. The HUD shows the
 phrase being recognized live (`hearing: ...`) and echoes everything typed.
 The microphone is only captured while dictation is on. While dictating:
 
@@ -77,11 +79,17 @@ The microphone is only captured while dictation is on. While dictating:
   beep; a phrase in flight is still typed). You get ~5 s to start speaking
   after the toggle. Tune with `voice_silence_s` / `voice_start_grace_s` in
   `config.py`.
+- **Long continuous speech** is typed in ~3 s chunks as you talk (Vosk only
+  finalizes a phrase at a pause, so without this nothing would appear until
+  you stopped). Tune with `voice_max_phrase_s` in `config.py`.
 - **2 mouth taps** → backspace.
 - **3 mouth taps** → back to cursor mode (hold ~1 s or **V** also exit,
   with a falling beep).
-- Taps never click while dictating. Fast talking can register as taps —
-  pause your speech for a beat before deliberate tap gestures.
+- Taps never click while dictating, and tap gestures only count while the
+  recognizer hears silence — fast talking registers as taps, so pause your
+  speech for a beat, then tap.
+- Every recognized phrase and injected keystroke is also logged to
+  `voice_log.txt` for debugging.
 
 The small English model (~40 MB) is downloaded to `models/` automatically
 the first time; the HUD shows download/load progress. Output is lowercase
