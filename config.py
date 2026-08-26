@@ -22,7 +22,8 @@ class Config:
     mouth_hold_s: float = 1.0        # sustained open that toggles voice dictation
 
     # Voice dictation
-    voice_silence_s: float = 1.0     # dictation turns itself off after this much silence
+    voice_silence_s: float = 2.5      # dictation turns itself off after this much silence
+    voice_start_grace_s: float = 5.0  # time allowed to start speaking after dictation turns on
 
 
 CONFIG = Config()

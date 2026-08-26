@@ -86,7 +86,7 @@ def main() -> int:
     print("SPACE start/pause | C re-center | V or hold mouth open ~1s: voice dictation | Q quit")
     print("Mouth taps: 1 = left click, 2 = right click")
     print("Voice: speak and each finished phrase is typed; 2 taps = backspace, "
-          "3 taps = back to cursor; turns itself off after ~1s of silence")
+          f"3 taps = back to cursor; turns itself off after {CONFIG.voice_silence_s:g}s of silence")
 
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
     cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_TOPMOST, 1)
@@ -200,7 +200,7 @@ def main() -> int:
                     put_text(frame, flash_text, (10, 130), (0, 255, 255), 0.8)
                 fh = frame.shape[0]
                 put_text(frame, "speak normally - each finished phrase is typed into"
-                         " the focused window; ~1s of silence exits",
+                         f" the focused window; {CONFIG.voice_silence_s:g}s of silence exits",
                          (10, fh - 30), (200, 200, 200), 0.45)
                 put_text(frame, "2 mouth taps = BACKSPACE   3 taps (or hold / V) = back to cursor",
                          (10, fh - 12), (200, 200, 200), 0.45)
@@ -242,7 +242,9 @@ def main() -> int:
                     voice.stop()
                     beep((988, 90), (660, 130))  # falling: dictation off
                 print("Voice dictation " + ("ON" if voice_mode else "OFF"), flush=True)
-            elif voice_mode and voice.idle_s() > CONFIG.voice_silence_s:
+            elif voice_mode and voice.idle_s() > (
+                    CONFIG.voice_silence_s if voice.heard_speech
+                    else CONFIG.voice_start_grace_s):
                 # The worker's FinalResult still lands via poll() next frame,
                 # so a phrase in flight when the timeout hits is not lost.
                 voice_mode = False

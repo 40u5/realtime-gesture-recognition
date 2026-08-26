@@ -13,6 +13,8 @@ import time
 import urllib.request
 import zipfile
 
+import numpy as np
+
 MODEL_NAME = "vosk-model-small-en-us-0.15"
 MODEL_URL = f"https://alphacephei.com/vosk/models/{MODEL_NAME}.zip"
 MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
@@ -34,6 +36,8 @@ class VoiceTyper:
         self.partial = ""   # phrase in progress, for the HUD
         self.state = "off"  # "off" | "listening" | progress text | "error: ..."
         self._last_speech = None  # monotonic time speech was last heard
+        self._noise = None  # adaptive noise-floor RMS estimate
+        self.heard_speech = False  # any speech heard since start()
 
     def idle_s(self) -> float:
         """Seconds since speech was last heard (0 unless actively listening)."""
@@ -49,6 +53,8 @@ class VoiceTyper:
             self._thread.join(timeout=5)
         self._stop = threading.Event()
         self.partial = ""
+        self.heard_speech = False
+        self._noise = None
         self.state = "starting"
         self._thread = threading.Thread(target=self._run, args=(self._stop,),
                                         daemon=True)
@@ -136,15 +142,30 @@ class VoiceTyper:
                         text = json.loads(rec.Result()).get("text", "")
                         if text:
                             self._finals.put(text)
-                            self._last_speech = time.monotonic()
+                            self.heard_speech = True
                     else:
-                        p = json.loads(rec.PartialResult()).get("partial", "")
-                        # Only a *changing* partial counts as speech, so the
-                        # repeated identical partial Vosk emits while waiting
-                        # to endpoint a phrase doesn't hold the timer open.
-                        if p and p != self.partial:
-                            self._last_speech = time.monotonic()
-                        self.partial = p
+                        self.partial = json.loads(rec.PartialResult()).get("partial", "")
+
+                    # Silence is judged by ear (chunk RMS vs an adaptive
+                    # noise floor), not by recognition progress: Vosk's
+                    # partial text can freeze for seconds mid-speech, which
+                    # cut dictation off while the user was still talking.
+                    samples = np.frombuffer(data, dtype=np.int16)
+                    rms = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2)))
+                    if self._noise is None:
+                        self._noise = rms
+                    else:
+                        # Falls fast so a loud first chunk can't poison the
+                        # floor; rises slowly so speech can't become "noise".
+                        k = 0.25 if rms < self._noise else 0.01
+                        self._noise += k * (rms - self._noise)
+                    if rms > max(3.0 * self._noise, 150.0):
+                        self._last_speech = time.monotonic()
+                        self.heard_speech = True
+                    elif self.partial:
+                        # The recognizer is still mid-phrase; don't call it
+                        # silence until the phrase is finalized.
+                        self._last_speech = time.monotonic()
             # Whatever was being said when dictation ended still counts.
             text = json.loads(rec.FinalResult()).get("text", "")
             if text:

@@ -26,10 +26,14 @@ class MouthTaps:
         self._hold_fired = False
 
     def cancel(self):
-        """Drop any gesture in flight."""
-        self._open = False
+        """Drop any taps in flight; if the mouth is mid-open, swallow the
+        rest of that open. Resetting _open here instead would make the
+        still-open mouth register as a fresh open, so the hold that just
+        toggled voice mode would re-fire 1s later and toggle it right back.
+        """
         self._taps = 0
-        self._hold_fired = False
+        if self._open:
+            self._hold_fired = True
 
     @property
     def mouth_open(self) -> bool:
